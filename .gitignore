@@ -1,6 +1,32 @@
-# editors
+# Zephyr build system
+/build/
+/build*/
+*.hex
+*.elf
+*.bin
+*.map
+*.log
+*.o
+*.obj
+*.d
+*.cmd
+*.lst
+*.stat
+*.asm
+*.s
+*.i
+*.ii
+*.bc
+*.a
+*.lib
+
+# Editor and IDE specific
+.vscode/
+.idea/
 *.swp
 *~
+.DS_Store
 
-# build
-/build*/
+# Python
+__pycache__/
+*.pyc

@@ -74,7 +74,7 @@ static void check_task(void *arg1, void *arg2, void *arg3)
 
 		delta = p_payload->cnt - last_cnt;
 
-		printk("Local Δpkt: %ld (%ld B/pkt) | throughput: %ld bit/s\n",
+		printk("Remote Δpkt: %ld (%ld B/pkt) | throughput: %ld bit/s\n",
 			delta, p_payload->size, delta * CONFIG_APP_IPC_SERVICE_MESSAGE_LEN * 8);
 
 		last_cnt = p_payload->cnt;
@@ -101,7 +101,7 @@ int main(void)
 	p_payload->size = CONFIG_APP_IPC_SERVICE_MESSAGE_LEN;
 	p_payload->cnt = 0;
 
-	printk("Local IPC-service %s demo started\n", CONFIG_BOARD_TARGET);
+	printk("Remote IPC-service %s demo started\n", CONFIG_BOARD_TARGET);
 
 	ipc0_instance = DEVICE_DT_GET(DT_NODELABEL(ipc0));
 
