@@ -1,0 +1,39 @@
+/*
+ * Remote core snippet: 206KB SRAM at 0x2000c800
+ */
+
+// Delete the default nodes
+/delete-node/ &{/memory@20028000};
+/delete-node/ &{/soc/rram-controller@5004b000/rram@165000/partitions/partition@0};
+
+/ {
+	soc {
+		reserved-memory {
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			// Define flash partition at 0x131800
+			cpuflpr_code_partition: image@131800 {
+				reg = <0x131800 DT_SIZE_K(206)>;
+			};
+		};
+
+		// SRAM: 206KB at 0x2000c800
+		cpuflpr_sram: memory@2000c800 {
+			compatible = "mmio-sram";
+			reg = <0x2000c800 DT_SIZE_K(206)>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x2000c800 DT_SIZE_K(206)>;
+		};
+	};
+
+	chosen {
+		zephyr,code-partition = &cpuflpr_code_partition;
+	};
+};
+
+&uart30 {
+	/delete-property/ hw-flow-control;
+};
+

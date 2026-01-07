@@ -101,7 +101,7 @@ int main(void)
 	p_payload->size = CONFIG_APP_IPC_SERVICE_MESSAGE_LEN;
 	p_payload->cnt = 0;
 
-	printk("Local IPC-service %s demo started\n", CONFIG_BOARD_TARGET);
+	printk("Remote IPC-service %s demo started\n", CONFIG_BOARD_TARGET);
 
 	ipc0_instance = DEVICE_DT_GET(DT_NODELABEL(ipc0));
 
@@ -136,7 +136,6 @@ int main(void)
 		}
 
 		p_payload->cnt++;
-
 
 		/* Quasi minimal busy wait time which allows to continuously send
 		 * data without -ENOMEM error code. The purpose is to test max

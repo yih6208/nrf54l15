@@ -1,0 +1,65 @@
+/*
+ * Custom FLPR snippet: 48KB main + 206KB remote
+ */
+
+/ {
+	soc {
+		reserved-memory {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			
+			// Remote core flash: 206KB at 0x131800
+			cpuflpr_code_partition: image@131800 {
+				reg = <0x131800 DT_SIZE_K(206)>;
+			};
+		};
+
+		// Remote core execution memory: 206KB at 0x2000C800
+		cpuflpr_sram_code_data: memory@2000c800 {
+			compatible = "mmio-sram";
+			reg = <0x2000c800 DT_SIZE_K(206)>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x2000c800 DT_SIZE_K(206)>;
+		};
+	};
+};
+
+// Delete partitions that exceed our shrunken RRAM
+/delete-node/ &storage_partition;
+/delete-node/ &slot1_partition;
+
+// Shrink main core RRAM to 1222KB
+&cpuapp_rram {
+	reg = <0x0 0x131800>;
+};
+
+// Define remote core RRAM: 206KB at 0x131800
+&rram_controller {
+	cpuflpr_rram: rram@131800 {
+		compatible = "soc-nv-flash";
+		reg = <0x131800 DT_SIZE_K(206)>;
+		erase-block-size = <4096>;
+		write-block-size = <16>;
+	};
+};
+
+&uart30 {
+	status = "reserved";
+};
+
+// Main core SRAM: 48KB
+&cpuapp_sram {
+	reg = <0x20000000 DT_SIZE_K(48)>;
+	ranges = <0x0 0x20000000 DT_SIZE_K(48)>;
+};
+
+&cpuflpr_vpr {
+	status = "okay";
+	execution-memory = <&cpuflpr_sram_code_data>;
+	source-memory = <&cpuflpr_code_partition>;
+};
+
+&cpuapp_vevif_tx {
+	status = "okay";
+};

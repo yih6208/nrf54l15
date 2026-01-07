@@ -1,0 +1,6 @@
+name: flpr-128k
+
+boards:
+  /.*/nrf54l15/cpuflpr/:
+    append:
+      EXTRA_DTC_OVERLAY_FILE: nrf54l15_cpuflpr.overlay

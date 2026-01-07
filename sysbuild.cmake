@@ -1,7 +1,5 @@
 #
-# Copyright (c) 2024 Nordic Semiconductor ASA
-#
-# SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+# Sysbuild configuration for custom flpr-128k snippet
 #
 
 if("${SB_CONFIG_REMOTE_BOARD}" STREQUAL "")
@@ -15,6 +13,8 @@ ExternalZephyrProject_Add(
   BOARD ${SB_CONFIG_REMOTE_BOARD}
   BOARD_REVISION ${BOARD_REVISION}
 )
+
+# Configure Partition Manager domains
 set_property(GLOBAL APPEND PROPERTY PM_DOMAINS CPUNET)
 set_property(GLOBAL APPEND PROPERTY PM_CPUNET_IMAGES remote)
 set_property(GLOBAL PROPERTY DOMAIN_APP_CPUNET remote)
