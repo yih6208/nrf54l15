@@ -25,10 +25,11 @@ LOG_MODULE_REGISTER(host, LOG_LEVEL_INF);
 struct payload {
 	unsigned long cnt;
 	unsigned long size;
-	uint8_t data[];
+	uint8_t data[CONFIG_APP_IPC_SERVICE_MESSAGE_LEN - sizeof(unsigned long) * 2];
 };
 
-struct payload *p_payload;
+static struct payload payload_buffer;
+static struct payload *p_payload = &payload_buffer;
 
 static K_SEM_DEFINE(bound_sem, 0, 1);
 
@@ -90,13 +91,7 @@ int main(void)
 	struct ipc_ept ep;
 	int ret;
 
-	p_payload = (struct payload *) k_malloc(CONFIG_APP_IPC_SERVICE_MESSAGE_LEN);
-	if (!p_payload) {
-		printk("k_malloc() failure\n");
-		return -ENOMEM;
-	}
-
-	memset(p_payload->data, 0xA5, CONFIG_APP_IPC_SERVICE_MESSAGE_LEN - sizeof(struct payload));
+	memset(p_payload->data, 0xA5, sizeof(p_payload->data));
 
 	p_payload->size = CONFIG_APP_IPC_SERVICE_MESSAGE_LEN;
 	p_payload->cnt = 0;
