@@ -30,3 +30,14 @@
 # Python
 __pycache__/
 *.pyc
+# Kiro specs and temporary files
+.kiro/
+
+# CMSIS-DSP library (external dependency)
+CMSIS-DSP/
+
+# Test utilities
+test_utils/
+
+# Build logs
+*.log

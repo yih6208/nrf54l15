@@ -1,0 +1,8 @@
+# Static partition: limit main core flash to 0x131800
+# This prevents PM from creating partitions beyond this point
+
+app:
+  address: 0x0
+  end_address: 0x131800
+  region: flash_primary
+  size: 0x131800
