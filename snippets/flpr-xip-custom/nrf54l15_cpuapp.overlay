@@ -6,7 +6,7 @@
  *
  * Memory Layout:
  * - M33 SRAM: 64KB at 0x20000000
- * - Shared Memory: 160KB at 0x20010000
+ * - Shared Memory: 160KB at 0x20010000 (for ping-pong buffers)
  * - FLPR SRAM: 32KB at 0x20038000
  * - M33 Flash: 0x00000000 to 0x15D000 (~1400KB)
  * - FLPR Flash: 0x15D000 to 0x17E000 (~124KB)
@@ -25,6 +25,32 @@
                 reg = <0x15D000 DT_SIZE_K(124)>;
                 #memory-region-cells = <0>;
                 zephyr,memory-region = "FLPR_CODE";
+            };
+
+            /* Shared memory for ping-pong buffers: 160KB at 0x20010000
+             * Layout:
+             * - Buffer 0: 64KB at 0x20010000
+             * - Buffer 1: 64KB at 0x20020000
+             * - Control Block: 32KB at 0x20030000
+             */
+            sram_shared: memory@20010000 {
+                compatible = "mmio-sram";
+                reg = <0x20010000 DT_SIZE_K(160)>;
+                #address-cells = <1>;
+                #size-cells = <1>;
+                ranges = <0x0 0x20010000 DT_SIZE_K(160)>;
+
+                buffer0: buffer@0 {
+                    reg = <0x0 DT_SIZE_K(64)>;
+                };
+
+                buffer1: buffer@10000 {
+                    reg = <0x10000 DT_SIZE_K(64)>;
+                };
+
+                control_block: control@20000 {
+                    reg = <0x20000 DT_SIZE_K(32)>;
+                };
             };
         };
     };
@@ -56,4 +82,13 @@
     status = "okay";
     execution-memory = <&cpuflpr_code_partition>;
     /* No source-memory = no copy operation, execute in place */
+};
+
+/* VEVIF configuration for inter-core interrupts (nRF54L15 uses VEVIF, not BELLBOARD) */
+&cpuapp_vevif_rx {
+	status = "okay";
+};
+
+&cpuapp_vevif_tx {
+	status = "okay";
 };

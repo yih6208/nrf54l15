@@ -1,151 +1,143 @@
 /*
- * Copyright (c) 2022 Nordic Semiconductor ASA
+ * Copyright (c) 2025 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ *
+ * Simple BELLBOARD Interrupt Test - M33 Side
+ * 
+ * This test validates basic BELLBOARD interrupt functionality:
+ * - M33 receives interrupts from FLPR
+ * - M33 sends interrupts to FLPR
+ * - Shared memory communication works
  */
 
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
-#include <string.h>
-
+#include <zephyr/drivers/mbox.h>
 #include <zephyr/logging/log.h>
 
-#include <zephyr/ipc/ipc_service.h>
+LOG_MODULE_REGISTER(m33_bellboard_test, LOG_LEVEL_INF);
 
-#ifdef CONFIG_TEST_EXTRA_STACK_SIZE
-#define STACKSIZE	(1024 + CONFIG_TEST_EXTRA_STACK_SIZE)
-#else
-#define STACKSIZE	(1024)
-#endif
+/* Shared memory addresses - must match overlay definitions */
+#define SHARED_MEM_BASE     0x20010000
+#define BUFFER_0_ADDR       (SHARED_MEM_BASE)
+#define BUFFER_1_ADDR       (SHARED_MEM_BASE + 0x10000)
+#define CONTROL_BLOCK_ADDR  (SHARED_MEM_BASE + 0x20000)
 
-K_THREAD_STACK_DEFINE(ipc0_stack, STACKSIZE);
-
-LOG_MODULE_REGISTER(host, LOG_LEVEL_INF);
-
-struct payload {
-	unsigned long cnt;
-	unsigned long size;
-	uint8_t data[];
+/* Control block structure in shared memory */
+struct control_block {
+	volatile uint32_t flpr_counter;
+	volatile uint32_t m33_counter;
+	volatile uint32_t flpr_to_m33_count;
+	volatile uint32_t m33_to_flpr_count;
 };
 
-struct payload *p_payload;
+static struct control_block *ctrl = (struct control_block *)CONTROL_BLOCK_ADDR;
 
-static K_SEM_DEFINE(bound_sem, 0, 1);
+/* MBOX device for BELLBOARD */
+static const struct device *mbox_dev;
 
-static void ep_bound(void *priv)
+/* Callback for BELLBOARD interrupt from FLPR */
+static void mbox_callback(const struct device *dev, uint32_t channel,
+			  void *user_data, struct mbox_msg *msg)
 {
-	k_sem_give(&bound_sem);
+	ARG_UNUSED(dev);
+	ARG_UNUSED(user_data);
+	ARG_UNUSED(msg);
+
+	/* Increment interrupt counter */
+	ctrl->flpr_to_m33_count++;
+
+	LOG_INF("M33: Received interrupt #%d from FLPR (FLPR counter: %d)",
+		ctrl->flpr_to_m33_count, ctrl->flpr_counter);
 }
-
-static void ep_recv(const void *data, size_t len, void *priv)
-{
-	uint8_t received_val = *((uint8_t *)data);
-	static uint8_t expected_val;
-
-
-	if ((received_val != expected_val) || (len != CONFIG_APP_IPC_SERVICE_MESSAGE_LEN)) {
-		printk("Unexpected message received_val: %d , expected_val: %d\n",
-			received_val,
-			expected_val);
-	}
-
-	expected_val++;
-}
-
-static struct ipc_ept_cfg ep_cfg = {
-	.name = "ep0",
-	.cb = {
-		.bound    = ep_bound,
-		.received = ep_recv,
-	},
-};
-
-static void check_task(void *arg1, void *arg2, void *arg3)
-{
-	ARG_UNUSED(arg1);
-	ARG_UNUSED(arg2);
-	ARG_UNUSED(arg3);
-
-	unsigned long last_cnt = p_payload->cnt;
-	unsigned long delta;
-
-	while (1) {
-		k_sleep(K_MSEC(1000));
-
-		delta = p_payload->cnt - last_cnt;
-
-		printk("Local Δpkt: %ld (%ld B/pkt) | throughput: %ld bit/s\n",
-			delta, p_payload->size, delta * CONFIG_APP_IPC_SERVICE_MESSAGE_LEN * 8);
-
-		last_cnt = p_payload->cnt;
-	}
-}
-
-K_THREAD_DEFINE(thread_check_id, STACKSIZE, check_task, NULL, NULL, NULL,
-		K_PRIO_COOP(1), 0, -1);
 
 int main(void)
 {
-	const struct device *ipc0_instance;
-	struct ipc_ept ep;
 	int ret;
 
-	p_payload = (struct payload *) k_malloc(CONFIG_APP_IPC_SERVICE_MESSAGE_LEN);
-	if (!p_payload) {
-		printk("k_malloc() failure\n");
-		return -ENOMEM;
+	LOG_INF("=== M33 VEVIF Interrupt Test ===");
+	LOG_INF("Shared memory base: 0x%08X", SHARED_MEM_BASE);
+	LOG_INF("Control block: 0x%08X", CONTROL_BLOCK_ADDR);
+
+	/* Initialize control block */
+	ctrl->flpr_counter = 0;
+	ctrl->m33_counter = 0;
+	ctrl->flpr_to_m33_count = 0;
+	ctrl->m33_to_flpr_count = 0;
+
+	LOG_INF("Control block initialized");
+
+	/* Get MBOX device (VEVIF RX) */
+	mbox_dev = DEVICE_DT_GET(DT_NODELABEL(cpuapp_vevif_rx));
+	if (!device_is_ready(mbox_dev)) {
+		LOG_ERR("MBOX RX device not ready");
+		return -ENODEV;
 	}
 
-	memset(p_payload->data, 0xA5, CONFIG_APP_IPC_SERVICE_MESSAGE_LEN - sizeof(struct payload));
+	LOG_INF("MBOX RX device ready");
 
-	p_payload->size = CONFIG_APP_IPC_SERVICE_MESSAGE_LEN;
-	p_payload->cnt = 0;
-
-	printk("Remote IPC-service %s demo started\n", CONFIG_BOARD_TARGET);
-
-	ipc0_instance = DEVICE_DT_GET(DT_NODELABEL(ipc0));
-
-#if defined(CONFIG_IPC_SERVICE_BACKEND_ICBMSG)
-	/* Wait a bit for the remote core to boot. */
-	k_msleep(100);
-#endif
-
-	ret = ipc_service_open_instance(ipc0_instance);
-	if ((ret < 0) && (ret != -EALREADY)) {
-		LOG_INF("ipc_service_open_instance() failure (%d)", ret);
-		return ret;
-	}
-
-	ret = ipc_service_register_endpoint(ipc0_instance, &ep, &ep_cfg);
+	/* Configure RX channel (receive from FLPR) - Channel 20 */
+	ret = mbox_set_enabled_dt(&(struct mbox_dt_spec){
+		.dev = mbox_dev,
+		.channel_id = 20
+	}, true);
 	if (ret < 0) {
-		printf("ipc_service_register_endpoint() failure (%d)", ret);
+		LOG_ERR("Failed to enable RX channel: %d", ret);
 		return ret;
 	}
 
-	k_sem_take(&bound_sem, K_FOREVER);
-	k_thread_start(thread_check_id);
+	/* Register callback for interrupts from FLPR */
+	ret = mbox_register_callback_dt(&(struct mbox_dt_spec){
+		.dev = mbox_dev,
+		.channel_id = 20
+	}, mbox_callback, NULL);
+	if (ret < 0) {
+		LOG_ERR("Failed to register callback: %d", ret);
+		return ret;
+	}
 
-	while (true) {
-		ret = ipc_service_send(&ep, p_payload, CONFIG_APP_IPC_SERVICE_MESSAGE_LEN);
-		if (ret == -ENOMEM) {
-			/* No space in the buffer. Retry. */
-			continue;
-		} else if (ret < 0) {
-			printk("send_message(%ld) failed with ret %d\n", p_payload->cnt, ret);
-			break;
-		}
+	LOG_INF("RX channel configured (Channel 20: FLPR -> M33)");
 
-		p_payload->cnt++;
+	/* Get TX device */
+	const struct device *mbox_tx_dev = DEVICE_DT_GET(DT_NODELABEL(cpuapp_vevif_tx));
+	if (!device_is_ready(mbox_tx_dev)) {
+		LOG_ERR("MBOX TX device not ready");
+		return -ENODEV;
+	}
 
-		/* Quasi minimal busy wait time which allows to continuously send
-		 * data without -ENOMEM error code. The purpose is to test max
-		 * throughput. Determined experimentally.
-		 */
-		if (CONFIG_APP_IPC_SERVICE_SEND_INTERVAL < 1000) {
-			k_busy_wait(CONFIG_APP_IPC_SERVICE_SEND_INTERVAL);
+	LOG_INF("TX channel configured (Channel 21: M33 -> FLPR)");
+	LOG_INF("Waiting for FLPR to start...");
+
+	/* Wait a bit for FLPR to initialize */
+	k_msleep(500);
+
+	LOG_INF("Starting interrupt test loop...");
+
+	/* Main loop: send interrupt to FLPR every second */
+	while (1) {
+		/* Increment M33 counter */
+		ctrl->m33_counter++;
+
+		/* Send interrupt to FLPR */
+		ret = mbox_send_dt(&(struct mbox_dt_spec){
+			.dev = mbox_tx_dev,
+			.channel_id = 21
+		}, NULL);
+		
+		if (ret < 0) {
+			LOG_ERR("Failed to send interrupt: %d", ret);
 		} else {
-			k_msleep(CONFIG_APP_IPC_SERVICE_SEND_INTERVAL/1000);
+			ctrl->m33_to_flpr_count++;
+			LOG_INF("M33: Sent interrupt #%d to FLPR (M33 counter: %d)",
+				ctrl->m33_to_flpr_count, ctrl->m33_counter);
 		}
+
+		/* Print statistics */
+		LOG_INF("Stats - FLPR->M33: %d, M33->FLPR: %d",
+			ctrl->flpr_to_m33_count, ctrl->m33_to_flpr_count);
+
+		k_msleep(1000);
 	}
 
 	return 0;

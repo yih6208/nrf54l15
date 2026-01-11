@@ -17,8 +17,9 @@
 #   - Less shared memory available
 
 # Parse command line arguments
-SNIPPET="${1:-flpr-xip-custom}"
+source /home/tim/ncs/v3.2.1/activate.sh 
 
+SNIPPET="${1:-flpr-xip-custom}"
 # Validate snippet choice
 if [ "$SNIPPET" != "flpr-xip-custom" ] && [ "$SNIPPET" != "flpr-128k" ]; then
     echo "Error: Invalid snippet '$SNIPPET'"
