@@ -1,5 +1,7 @@
 /*
- * Remote core: 206KB SRAM
+ * FLPR IPC configuration for XIP memory layout
+ * Shared memory region: 160KB (0x20010000-0x20038000)
+ * TX/RX swapped from M33 perspective for bidirectional communication
  */
 
 / {
@@ -8,12 +10,14 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			sram_tx: memory@2000c000 {
-				reg = <0x2000c000 0x400>;  // 1KB
+			// TX buffer: 1KB at 0x20010000 (M33's RX)
+			sram_tx: memory@20010000 {
+				reg = <0x20010000 0x400>;  // 1KB
 			};
 
-			sram_rx: memory@2000c400 {
-				reg = <0x2000c400 0x400>;  // 1KB
+			// RX buffer: 1KB at 0x20010400 (M33's TX)
+			sram_rx: memory@20010400 {
+				reg = <0x20010400 0x400>;  // 1KB
 			};
 		};
 	};

@@ -1,5 +1,6 @@
 /*
- * IPC configuration for custom flpr-128k snippet
+ * IPC configuration for XIP memory layout
+ * Shared memory region: 160KB (0x20010000-0x20038000)
  */
 
 / {
@@ -8,14 +9,18 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			// Shared IPC: 2KB at 0x2000C000
-			sram_rx: memory@2000c000 {
-				reg = <0x2000c000 0x400>;  // 1KB
+			// Shared IPC buffers within 160KB shared region
+			// RX buffer: 1KB at start of shared memory
+			sram_rx: memory@20010000 {
+				reg = <0x20010000 0x400>;  // 1KB
 			};
 
-			sram_tx: memory@2000c400 {
-				reg = <0x2000c400 0x400>;  // 1KB
+			// TX buffer: 1KB immediately after RX
+			sram_tx: memory@20010400 {
+				reg = <0x20010400 0x400>;  // 1KB
 			};
+
+			// Remaining 158KB (0x20010800-0x20038000) available for application buffers
 		};
 	};
 

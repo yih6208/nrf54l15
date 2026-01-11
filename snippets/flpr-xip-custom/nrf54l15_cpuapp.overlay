@@ -1,0 +1,59 @@
+/*
+ * Copyright (c) 2025 Nordic Semiconductor ASA
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * M33 Device Tree Overlay for FLPR XIP Memory Configuration
+ *
+ * Memory Layout:
+ * - M33 SRAM: 64KB at 0x20000000
+ * - Shared Memory: 160KB at 0x20010000
+ * - FLPR SRAM: 32KB at 0x20038000
+ * - M33 Flash: 0x00000000 to 0x15D000 (~1400KB)
+ * - FLPR Flash: 0x15D000 to 0x17E000 (~124KB)
+ */
+
+/* Delete conflicting default partitions */
+/delete-node/ &storage_partition;
+/delete-node/ &slot1_partition;
+
+/ {
+    soc {
+        reserved-memory {
+            /* FLPR Flash partition - must match remote snippet definition */
+            cpuflpr_code_partition: image@15D000 {
+                compatible = "zephyr,memory-region";
+                reg = <0x15D000 DT_SIZE_K(124)>;
+                #memory-region-cells = <0>;
+                zephyr,memory-region = "FLPR_CODE";
+            };
+        };
+    };
+};
+
+/* M33 SRAM: 64KB at 0x20000000 */
+&cpuapp_sram {
+    reg = <0x20000000 DT_SIZE_K(64)>;
+    ranges = <0x0 0x20000000 DT_SIZE_K(64)>;
+};
+
+/* M33 Flash: shrink to make room for FLPR (end at 0x15D000) */
+&cpuapp_rram {
+    reg = <0x0 0x15D000>;
+};
+
+/* Define FLPR RRAM region in the RRAM controller */
+&rram_controller {
+    cpuflpr_rram: rram@15D000 {
+        compatible = "soc-nv-flash";
+        reg = <0x15D000 DT_SIZE_K(124)>;
+        erase-block-size = <4096>;
+        write-block-size = <16>;
+    };
+};
+
+/* Configure VPR for XIP mode - execute directly from Flash */
+&cpuflpr_vpr {
+    status = "okay";
+    execution-memory = <&cpuflpr_code_partition>;
+    /* No source-memory = no copy operation, execute in place */
+};

@@ -1,0 +1,54 @@
+/*
+ * FLPR XIP Memory Configuration Overlay
+ * 
+ * This overlay configures the FLPR core for XIP (Execute-In-Place) mode:
+ * - FLPR executes code directly from Flash (no copy to SRAM)
+ * - FLPR SRAM: 32KB at 0x20038000 (data only - stack, heap, variables)
+ * - FLPR Flash: 124KB at 0x15D000 (code execution)
+ * 
+ * Requirements: 1.3, 2.4, 2.5, 3.2, 3.3, 4.5
+ */
+
+/* Delete default memory nodes that conflict with our custom layout */
+/delete-node/ &{/memory@20028000};
+/delete-node/ &{/soc/rram-controller@5004b000/rram@165000/partitions/partition@0};
+
+/ {
+	soc {
+		reserved-memory {
+			/* FLPR Flash partition - MUST match M33 definition exactly
+			 * Address: 0x15D000 (1,429,504 bytes from start)
+			 * Size: 124KB (126,976 bytes)
+			 * This is where FLPR code will execute from (XIP mode)
+			 */
+			cpuflpr_code_partition: image@15D000 {
+				compatible = "zephyr,memory-region";
+				reg = <0x15D000 DT_SIZE_K(124)>;
+				zephyr,memory-region = "CPUFLPR_CODE";
+			};
+		};
+
+		/* FLPR SRAM: 32KB for data only (no code)
+		 * Address: 0x20038000 (start of FLPR SRAM region)
+		 * Size: 32KB (32,768 bytes)
+		 * Used for: stack, heap, global variables, local data
+		 */
+		cpuflpr_sram: memory@20038000 {
+			compatible = "mmio-sram";
+			reg = <0x20038000 DT_SIZE_K(32)>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0x0 0x20038000 DT_SIZE_K(32)>;
+		};
+	};
+
+	/* Critical: Tell linker to place code in Flash partition
+	 * This enables XIP mode - code executes from Flash, not SRAM
+	 * Without this, linker would try to place code in SRAM
+	 */
+	chosen {
+		zephyr,flash = &cpuflpr_code_partition;
+		zephyr,code-partition = &cpuflpr_code_partition;
+		zephyr,sram = &cpuflpr_sram;
+	};
+};
